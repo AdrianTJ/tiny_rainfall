@@ -1,27 +1,25 @@
 #!/bin/bash
 
-# Improved Tiny Rain Simulator
-# A more robust and visually appealing rain effect for the terminal.
+# Improved Tiny Rain Simulator - Final Stability Fix
+# Focus: Maximum compatibility and zero syntax errors.
 
 # --- Configuration ---
 COLOR_RAIN="\033[34m"     # Blue
 COLOR_BRIGHT="\033[1;34m" # Bright Blue
-COLOR_PUDDLE="\033[36m"   # Cyan
 COLOR_RESET="\033[0m"
 COLOR_THUNDER="\033[107m" # Bright White Background
 
-CHARACTERS=("." "," "'" "|" ":")
-SPLASH_CHARS=("v" "u" "w")
-PUDDLE_CHAR="~"
+# Using only safe characters to avoid shell parsing issues
+CHARACTERS=("." "," ":" "i" "|")
+SPLASH_CHAR="v"
 
 SPEED=0.05
-DENSITY=20 # Higher = less rain (1 in X chance per column)
+DENSITY=20 
 
 # Global State
 cols=0
 rows=0
 buffer=()
-puddle=() # Tracks accumulation per column
 THUNDER_ENABLED=false
 
 # --- Functions ---
@@ -31,15 +29,16 @@ update_dimensions() {
     cols=$(tput cols)
     rows=$(tput lines)
     buffer=()
-    puddle=()
-    for ((i=0; i<rows; i++)); do buffer[i]=$(printf "%${cols}s" ""); done
-    for ((j=0; j<cols; j++)); do puddle[j]=0; done
+    local empty_line=$(printf "%${cols}s" "")
+    for ((i=0; i<rows; i++)); do
+        buffer[i]="$empty_line"
+    done
 }
 
 # Cleanup on exit
 cleanup() {
     tput cnorm # Show cursor
-    echo -ne "${COLOR_RESET}"
+    echo -ne "\033[0m"
     clear
     exit
 }
@@ -57,74 +56,58 @@ generate_line() {
     echo "$new_line"
 }
 
-# Shift buffer and handle splashes/puddles
+# Shift buffer and handle splashes
 update_buffer() {
     # Shift buffer down
     for ((i=rows-1; i>0; i--)); do
         buffer[i]="${buffer[i-1]}"
     done
 
-    # Handle Ground Row (rows-1)
-    local ground=""
-    local prev_row="${buffer[rows-1]}"
+    # Splash Logic: Transform raindrops that hit the bottom row into splashes
+    local b="${buffer[rows-1]}"
+    # Replace any rain character in the set [.,:i|] with a splash character 'v'
+    buffer[rows-1]="${b//[.,:i|]/$SPLASH_CHAR}"
     
-    for ((j=0; j<cols; j++)); do
-        local char="${prev_row:$j:1}"
-        
-        # If there was a raindrop here, it "splashes" and adds to puddle
-        if [[ "$char" != " " && "$char" != "$PUDDLE_CHAR" ]]; then
-            # Splash!
-            ground+="${SPLASH_CHARS[$RANDOM % ${#SPLASH_CHARS[@]}]}"
-            ((puddle[j]++))
-        elif [[ $((puddle[j])) -gt 10 ]]; then
-            # If enough water has accumulated, show a puddle
-            ground+="$PUDDLE_CHAR"
-            # Slowly "evaporate" or reset puddle so it's dynamic
-            if (( RANDOM % 5 == 0 )); then puddle[j]=5; fi
-        else
-            ground+=" "
-        fi
-    done
-    buffer[rows-1]="$ground"
-
     # New top line
     buffer[0]=$(generate_line)
 }
 
-# Render the current buffer with color
+# Render the current buffer with optimized coloring
 draw_frame() {
+    # Move cursor to top-left
     printf "\033[H"
     
     # Thunder flash
     if [[ "$THUNDER_ENABLED" == "true" ]] && (( RANDOM % 80 == 0 )); then
         printf "\033[107m\033[2J"
-        sleep 0.03
+        sleep 0.02
     fi
 
+    local frame=""
     for ((i=0; i<rows; i++)); do
         local line="${buffer[i]}"
-        local colored_line=""
         
-        # Apply color based on character type
-        for ((j=0; j<cols; j++)); do
-            local char="${line:$j:1}"
-            case "$char" in
-                " ") colored_line+=" " ;;
-                "$PUDDLE_CHAR") colored_line+="${COLOR_PUDDLE}${char}${COLOR_RESET}" ;;
-                "v"|"u"|"w") colored_line+="${COLOR_BRIGHT}${char}${COLOR_RESET}" ;;
-                *) 
-                    # Raindrops
-                    if (( RANDOM % 5 == 0 )); then
-                        colored_line+="${COLOR_BRIGHT}${char}${COLOR_RESET}"
-                    else
-                        colored_line+="${COLOR_RAIN}${char}${COLOR_RESET}"
-                    fi
-                    ;;
-            esac
-        done
-        echo -e "$colored_line"
+        # Fast coloring using pattern replacement
+        # We do this in one pass per character type
+        if [[ "$line" == *[![:space:]]* ]]; then
+            line="${line//./${COLOR_RAIN}.}"
+            line="${line//,/${COLOR_RAIN},}"
+            line="${line//:/${COLOR_RAIN}:}"
+            line="${line//i/${COLOR_RAIN}i}"
+            line="${line//|/${COLOR_RAIN}|}"
+            line="${line//$SPLASH_CHAR/${COLOR_BRIGHT}${SPLASH_CHAR}}"
+            line="${line}${COLOR_RESET}"
+        fi
+        
+        # Avoid newline on the very last row to prevent scrolling
+        if (( i < rows - 1 )); then
+            frame+="$line\n"
+        else
+            frame+="$line"
+        fi
     done
-    printf "%b" "${COLOR_RESET}"
+    
+    printf "%b" "$frame"
 }
 
 # Main loop
@@ -146,6 +129,7 @@ main() {
     done
 }
 
+# Run main if not being sourced
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
