@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Simple Test Suite for Tiny Rainfall
+# Updated Test Suite for Tiny Rainfall (Step 2)
 
 # Source the script without running main
 source ./rain.sh
@@ -26,38 +26,39 @@ test_generate_line() {
     echo -n "Testing generate_line... "
     cols=10
     local line=$(generate_line)
-    # Strip ANSI codes for length check
-    local stripped=$(echo -e "$line" | sed 's/\x1b\[[0-9;]*m//g')
-    if [[ ${#stripped} -eq 10 ]]; then
+    # Now it's raw chars, so length should be exactly 10
+    if [[ ${#line} -eq 10 ]]; then
         echo "PASS"
     else
-        echo "FAIL (length=${#stripped}, line='$stripped')"
+        echo "FAIL (length=${#line}, line='$line')"
         exit 1
     fi
 }
 
-test_thunder_flag() {
-    echo -n "Testing thunder flag detection... "
-    # Mocking main loop variables
-    THUNDER_ENABLED=false
+test_splash_logic() {
+    echo -n "Testing splash transformation... "
+    update_dimensions
+    cols=5
+    rows=3
+    # Manually set buffer[1] to have a raindrop
+    buffer[1]=". , |"
+    # Call update_buffer. buffer[1] moves to buffer[2] and should become splashes.
+    update_buffer
     
-    # We can't easily run main() because it loops, 
-    # but we can test the logic inside it if we isolate it.
-    # For now, let's just verify the variables can be set.
-    THUNDER=true
-    if [[ "$THUNDER" == "true" ]]; then THUNDER_ENABLED=true; fi
-    
-    if [[ "$THUNDER_ENABLED" == "true" ]]; then
+    local ground="${buffer[2]}"
+    # Expected: . , | become splash chars (v, u, or w)
+    # Check if ground contains any splash chars at indices 0, 2, 4
+    if [[ "${ground:0:1}" =~ [vuw] && "${ground:2:1}" =~ [vuw] && "${ground:4:1}" =~ [vuw] ]]; then
         echo "PASS"
     else
-        echo "FAIL"
+        echo "FAIL (ground='$ground')"
         exit 1
     fi
 }
 
 # Run tests
-echo "Running Tiny Rainfall Tests..."
+echo "Running Tiny Rainfall Tests (Step 2)..."
 test_dimensions
 test_generate_line
-test_thunder_flag
+test_splash_logic
 echo "All tests passed! 🎉"
