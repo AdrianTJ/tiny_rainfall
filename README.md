@@ -8,6 +8,7 @@ A lightweight Bash script that simulates a rain effect in your terminal. This im
 - **Graceful Exit:** Cleans up the terminal, restores the cursor, and resets colors when you stop the script.
 - **Dynamic Resizing:** Automatically adapts to terminal window resizing.
 - **Minimal Flicker:** Uses efficient cursor positioning for a smoother experience.
+- **Thunder Effect:** Optional lightning flashes for a stormier feel.
 
 **Usage:**
 1. **Save the script:** Save the code as `rain.sh`.
@@ -18,6 +19,12 @@ A lightweight Bash script that simulates a rain effect in your terminal. This im
 3. **Run the script:**
    ```bash
    ./rain.sh
+   ```
+   To enable thunder (lightning flashes):
+   ```bash
+   ./rain.sh --thunder
+   # OR
+   THUNDER=true ./rain.sh
    ```
    Press `Ctrl+C` to stop the simulation.
 

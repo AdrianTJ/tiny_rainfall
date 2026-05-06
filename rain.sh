@@ -62,10 +62,22 @@ while :; do
     # Draw the frame
     # Move cursor to top-left
     printf "\033[H"
+
+    # Check for lightning flash
+    if [[ "$THUNDER_ENABLED" == "true" ]] && (( RANDOM % 80 == 0 )); then
+        # Set background to bright white and clear screen
+        printf "\033[107m\033[2J"
+        # Small delay to ensure the flash is perceived
+        sleep 0.03
+    fi
+
     for ((i=0; i<rows; i++)); do
         # Use %b to interpret the color escape codes in the buffer
         printf "%b\n" "${buffer[i]}"
     done
+
+    # Reset colors for next frame
+    printf "%b" "${COLOR_RESET}"
 
     sleep $SPEED
 done
