@@ -3,15 +3,24 @@
 # Improved Tiny Rain Simulator
 # A more robust and visually appealing rain effect for the terminal.
 
-# Configuration
+# --- Configuration ---
 COLOR_RAIN="\033[34m"     # Blue
 COLOR_BRIGHT="\033[1;34m" # Bright Blue
 COLOR_RESET="\033[0m"
+COLOR_THUNDER="\033[107m" # Bright White Background
 CHARACTERS=("." "," "'" "|" ":")
 SPEED=0.05
 DENSITY=20 # Higher = less rain (1 in X chance per column)
 
-# Get terminal dimensions
+# Global State
+cols=0
+rows=0
+buffer=()
+THUNDER_ENABLED=false
+
+# --- Functions ---
+
+# Get terminal dimensions and re-initialize buffer
 update_dimensions() {
     cols=$(tput cols)
     rows=$(tput lines)
@@ -28,26 +37,12 @@ cleanup() {
     exit
 }
 
-# Traps
-trap update_dimensions SIGWINCH
-trap cleanup SIGINT EXIT
-
-# Initial Setup
-tput civis # Hide cursor
-update_dimensions
-
-while :; do
-    # Shift buffer lines down
-    for ((i=rows-1; i>0; i--)); do
-        buffer[i]="${buffer[i-1]}"
-    done
-
-    # Generate new top line
-    new_line=""
+# Generate a single line of rain
+generate_line() {
+    local new_line=""
     for ((j=0; j<cols; j++)); do
         if ((RANDOM % DENSITY == 0)); then
-            char=${CHARACTERS[$RANDOM % ${#CHARACTERS[@]}]}
-            # Occasionally use bright color for depth
+            local char=${CHARACTERS[$RANDOM % ${#CHARACTERS[@]}]}
             if ((RANDOM % 5 == 0)); then
                 new_line+="${COLOR_BRIGHT}${char}${COLOR_RESET}"
             else
@@ -57,27 +52,56 @@ while :; do
             new_line+=" "
         fi
     done
-    buffer[0]="$new_line"
+    echo "$new_line"
+}
 
-    # Draw the frame
-    # Move cursor to top-left
+# Shift buffer and add new line
+update_buffer() {
+    for ((i=rows-1; i>0; i--)); do
+        buffer[i]="${buffer[i-1]}"
+    done
+    buffer[0]=$(generate_line)
+}
+
+# Render the current buffer
+draw_frame() {
     printf "\033[H"
-
-    # Check for lightning flash
+    
+    # Thunder flash
     if [[ "$THUNDER_ENABLED" == "true" ]] && (( RANDOM % 80 == 0 )); then
-        # Set background to bright white and clear screen
         printf "\033[107m\033[2J"
-        # Small delay to ensure the flash is perceived
         sleep 0.03
     fi
 
     for ((i=0; i<rows; i++)); do
-        # Use %b to interpret the color escape codes in the buffer
         printf "%b\n" "${buffer[i]}"
     done
-
-    # Reset colors for next frame
     printf "%b" "${COLOR_RESET}"
+}
 
-    sleep $SPEED
-done
+# Main loop
+main() {
+    # Argument handling
+    if [[ "$1" == "--thunder" || "$THUNDER" == "true" ]]; then
+        THUNDER_ENABLED=true
+    fi
+
+    # Traps
+    trap update_dimensions SIGWINCH
+    trap cleanup SIGINT EXIT
+
+    # Initial Setup
+    tput civis # Hide cursor
+    update_dimensions
+
+    while :; do
+        update_buffer
+        draw_frame
+        sleep $SPEED
+    done
+}
+
+# Run main if not being sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
