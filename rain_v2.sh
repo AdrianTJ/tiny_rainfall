@@ -20,6 +20,7 @@ DENSITY=20
 cols=0
 rows=0
 buffer=()
+puddles=()
 THUNDER_ENABLED=false
 
 # --- Functions ---
@@ -29,9 +30,13 @@ update_dimensions() {
     cols=$(tput cols)
     rows=$(tput lines)
     buffer=()
+    puddles=()
     local empty_line=$(printf "%${cols}s" "")
     for ((i=0; i<rows; i++)); do
         buffer[i]="$empty_line"
+    done
+    for ((i=0; i<cols; i++)); do
+        puddles[i]=0
     done
 }
 
@@ -56,17 +61,36 @@ generate_line() {
     echo "$new_line"
 }
 
-# Shift buffer and handle splashes
+# Shift buffer and handle splashes and puddles
 update_buffer() {
     # Shift buffer down
     for ((i=rows-1; i>0; i--)); do
         buffer[i]="${buffer[i-1]}"
     done
 
-    # Splash Logic: Transform raindrops that hit the bottom row into splashes
-    local b="${buffer[rows-1]}"
-    # Replace any rain character in the set [.,:i|] with a splash character 'v'
-    buffer[rows-1]="${b//[.,:i|]/$SPLASH_CHAR}"
+    # Splash & Puddle Logic
+    local last_row="${buffer[rows-1]}"
+    local new_last_row=""
+    
+    for ((j=0; j<cols; j++)); do
+        char="${last_row:$j:1}"
+        if [[ "$char" =~ [.,:i|] ]]; then
+            # Increment puddle accumulation at this column
+            ((puddles[j]++))
+            # Show splash for one frame
+            new_last_row+="$SPLASH_CHAR"
+        else
+            # If puddle exists here, show puddle character
+            if (( puddles[j] > 10 )); then
+                new_last_row+="~"
+            elif (( puddles[j] > 0 )); then
+                new_last_row+="_"
+            else
+                new_last_row+=" "
+            fi
+        fi
+    done
+    buffer[rows-1]="$new_last_row"
     
     # New top line
     buffer[0]=$(generate_line)
@@ -88,7 +112,6 @@ draw_frame() {
         local line="${buffer[i]}"
         
         # Fast coloring using pattern replacement
-        # We do this in one pass per character type
         if [[ "$line" == *[![:space:]]* ]]; then
             line="${line//./${COLOR_RAIN}.}"
             line="${line//,/${COLOR_RAIN},}"
@@ -96,6 +119,8 @@ draw_frame() {
             line="${line//i/${COLOR_RAIN}i}"
             line="${line//|/${COLOR_RAIN}|}"
             line="${line//$SPLASH_CHAR/${COLOR_BRIGHT}${SPLASH_CHAR}}"
+            line="${line//~/${COLOR_BRIGHT}~}"
+            line="${line//_/${COLOR_RAIN}_}"
             line="${line}${COLOR_RESET}"
         fi
         
