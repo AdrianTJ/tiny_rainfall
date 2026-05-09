@@ -1,44 +1,20 @@
 #!/bin/bash
 
-# Updated Test Suite for Tiny Rainfall (Stability Fix)
+# Master Test Runner
 
-source ./rain.sh
+echo "Starting all tests..."
+echo "-------------------"
 
-tput() {
-    if [[ "$1" == "cols" ]]; then echo 80; fi
-    if [[ "$1" == "lines" ]]; then echo 24; fi
-}
-
-test_dimensions() {
-    echo -n "Testing update_dimensions... "
-    update_dimensions
-    if [[ "$cols" -eq 80 && "$rows" -eq 24 && "${#buffer[@]}" -eq 24 ]]; then
-        echo "PASS"
-    else
-        echo "FAIL"
-        exit 1
+for test_file in tests/test_*.sh; do
+    if [[ -f "$test_file" ]]; then
+        bash "$test_file"
+        if [ $? -ne 0 ]; then
+            echo "-------------------"
+            echo "❌ Some tests failed!"
+            exit 1
+        fi
     fi
-}
+done
 
-test_splash_logic() {
-    echo -n "Testing splash transformation... "
-    update_dimensions
-    cols=5
-    rows=3
-    buffer[1]=". , |"
-    update_buffer
-    
-    local ground="${buffer[2]}"
-    # Check if rain characters were converted to the splash character 'v'
-    if [[ "${ground:0:1}" == "v" && "${ground:2:1}" == "v" && "${ground:4:1}" == "v" ]]; then
-        echo "PASS"
-    else
-        echo "FAIL (ground='$ground')"
-        exit 1
-    fi
-}
-
-echo "Running Tiny Rainfall Tests (Stability Fix)..."
-test_dimensions
-test_splash_logic
-echo "All tests passed! 🎉"
+echo "-------------------"
+echo "✅ All tests passed! 🎉"
